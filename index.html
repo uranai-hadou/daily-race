@@ -219,6 +219,16 @@
   .share-btn.copied { border-color: var(--good); color: var(--good); }
   .share-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
+  .sync-status { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  .sync-status.ok { color: var(--good); }
+  .sync-status.err { color: var(--danger); }
+  .sync-key { display: flex; gap: 8px; margin-top: 10px; }
+  .sync-key input { flex: 1; font-size: 13px; }
+  .sync-key button {
+    flex: none; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px;
+    border: 1px solid var(--baseline); background: transparent; color: var(--ink-2); cursor: pointer;
+  }
+
   footer { font-size: 12px; color: var(--muted); text-align: center; }
 
   /* ===== 入力ロック ===== */
@@ -300,13 +310,23 @@
     </section>
 
     <section class="card">
-      <button type="button" class="save-btn" id="saveBtn">この日の売上を保存(グラフに即反映)</button>
+      <button type="button" class="save-btn" id="saveBtn">この日の売上を保存(全員に自動反映)</button>
       <div style="height:10px"></div>
-      <button type="button" class="share-btn" id="shareBtn">チーム共有用データをコピー</button>
+      <button type="button" class="share-btn" id="shareBtn">バックアップ用データをコピー</button>
       <div class="share-note">
-        入力データは<strong>この端末のブラウザ</strong>に保存され、あなたの画面のグラフにはすぐ反映されます。
-        チームメンバーの画面を最新にしたいときは、「チーム共有用データをコピー」を押して、そのテキストをClaudeに送って「反映して」と伝えてください(毎日でなくてもOK)。
+        「保存」を押すと、この端末とチーム全員の画面に自動で反映されます(反映には同期キーの設定が必要です)。
+        バックアップコピーは万一のデータ復旧用です。
       </div>
+    </section>
+
+    <section class="card">
+      <h2>自動同期</h2>
+      <div class="sync-status" id="syncStatus">確認中…</div>
+      <div class="sync-key" id="syncKeyRow" hidden>
+        <input type="password" id="tokenInput" placeholder="同期キー(github_pat_…)" autocomplete="off">
+        <button type="button" id="tokenSave">キーを保存</button>
+      </div>
+      <div class="share-note">同期キーをこの端末に一度保存すれば、以後は「保存」を押すだけで全端末・チーム全員に自動反映されます。キーは管理者(あなた)の端末にだけ入れてください。</div>
     </section>
   </div>
 
@@ -409,6 +429,131 @@ const allDates = () => Object.keys(state.sales).sort();
 const ownerHtml = (ac) => ac.owner && ac.owner.trim() ? `<span class="owner">担当 ${esc(ac.owner)}</span>` : "";
 function esc(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function escAttr(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+/* ================= GitHub自動同期 =================
+   データの正本は uranai-hadou/daily-race リポジトリの data.json。
+   読み取りは誰でも(認証なし)、書き込みは同期キー(fine-grained PAT、
+   このリポジトリのContents権限のみ)を保存した管理者端末だけ。 */
+const GH_API = "https://api.github.com/repos/uranai-hadou/daily-race/contents/data.json";
+const TOKEN_KEY = "kantei-sync-token-v1";
+let syncToken = store.getItem(TOKEN_KEY) || "";
+let cloudSha = null;
+let dirty = false;
+let pushing = false;
+let pushTimer = null;
+
+const syncStatus = document.getElementById("syncStatus");
+const syncKeyRow = document.getElementById("syncKeyRow");
+function setSync(kind, msg) {
+  syncStatus.className = "sync-status" + (kind === "ok" ? " ok" : kind === "err" ? " err" : "");
+  syncStatus.textContent = msg;
+  syncKeyRow.hidden = !(kind === "err" || kind === "nokey");
+}
+
+const b64encode = (s) => {
+  const bytes = new TextEncoder().encode(s);
+  let bin = "";
+  bytes.forEach(b => { bin += String.fromCharCode(b); });
+  return btoa(bin);
+};
+const b64decode = (b) => new TextDecoder().decode(Uint8Array.from(atob(b.replace(/\s/g, "")), c => c.charCodeAt(0)));
+
+async function cloudFetch(withToken) {
+  const headers = { "Accept": "application/vnd.github+json" };
+  if (withToken && syncToken) headers["Authorization"] = "Bearer " + syncToken;
+  const r = await fetch(GH_API + "?t=" + Date.now(), { headers, cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const j = await r.json();
+  cloudSha = j.sha;
+  return JSON.parse(b64decode(j.content));
+}
+
+function adoptCloud(data) {
+  if (!data || !Array.isArray(data.accounts) || !data.accounts.length || typeof data.sales !== "object" || !data.sales) return false;
+  state.accounts = data.accounts;
+  state.sales = data.sales;
+  if (typeof data.nextIdx === "number") state.nextIdx = data.nextIdx;
+  saveState();
+  return true;
+}
+
+async function cloudPull(opts) {
+  const force = opts && opts.force;
+  try {
+    const data = await cloudFetch(false);
+    if (dirty && !force) return; /* 未送信のローカル変更を優先 */
+    /* 管理者が入力タブを開いて編集中の間は、勝手に上書きしない */
+    if (!force && viewInput.style.display !== "none") return;
+    if (adoptCloud(data)) {
+      renderDashboard();
+      loadDraft();
+    }
+  } catch {}
+}
+
+async function cloudPush() {
+  if (!syncToken) { setSync("nokey", "同期キーが未設定です(閲覧は問題なし。入力を反映するにはキーが必要)"); return false; }
+  if (pushing) return false;
+  pushing = true;
+  setSync("info", "同期中…");
+  try {
+    try { await cloudFetch(true); } catch {} /* 最新のshaを取得 */
+    const payload = {
+      updatedAt: new Date().toISOString(),
+      nextIdx: state.nextIdx,
+      accounts: state.accounts,
+      sales: state.sales,
+    };
+    const body = { message: "売上データ更新", content: b64encode(JSON.stringify(payload, null, 1)) };
+    if (cloudSha) body.sha = cloudSha;
+    const r = await fetch(GH_API, {
+      method: "PUT",
+      headers: {
+        "Accept": "application/vnd.github+json",
+        "Authorization": "Bearer " + syncToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const j = await r.json();
+    if (j.content && j.content.sha) cloudSha = j.content.sha;
+    dirty = false;
+    pushing = false;
+    setSync("ok", "✓ 同期済み — 全員に反映されています");
+    return true;
+  } catch (err) {
+    pushing = false;
+    dirty = true;
+    setSync("err", "⚠ 同期に失敗しました(キーの期限切れ・通信環境を確認してください)");
+    return false;
+  }
+}
+function queuePush() {
+  dirty = true;
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(cloudPush, 1500);
+}
+
+document.getElementById("tokenSave").addEventListener("click", async () => {
+  const v = document.getElementById("tokenInput").value.trim();
+  if (!v) return;
+  syncToken = v;
+  try { store.setItem(TOKEN_KEY, v); } catch {}
+  setSync("info", "キーを確認中…");
+  try {
+    await cloudFetch(true);
+    setSync("ok", "✓ 同期キーを設定しました");
+    document.getElementById("tokenInput").value = "";
+    if (dirty) cloudPush();
+  } catch {
+    setSync("err", "⚠ キーが無効です(コピーミスがないか確認してください)");
+  }
+});
+
+/* 閲覧者向け: 90秒ごと+画面を開き直したときに最新データを取得 */
+setInterval(() => cloudPull(), 90000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) cloudPull(); });
 
 /* ================= タブ ================= */
 const viewDash = document.getElementById("view-dash");
@@ -807,8 +952,8 @@ accountsEl.addEventListener("input", (e) => {
   const row = e.target.closest(".acc-row"); if (!row) return;
   const ac = state.accounts.find(a => a.id === row.dataset.id); if (!ac) return;
   const f = e.target.dataset.field;
-  if (f === "name") { ac.name = e.target.value; saveState(); }
-  if (f === "owner") { ac.owner = e.target.value; saveState(); }
+  if (f === "name") { ac.name = e.target.value; saveState(); queuePush(); }
+  if (f === "owner") { ac.owner = e.target.value; saveState(); queuePush(); }
   if (f === "amt") {
     const d = draft[ac.id] = draft[ac.id] || { amts: [0], skip: false };
     d.amts[Number(e.target.dataset.idx)] = Math.max(0, Math.round(Number(e.target.value) || 0));
@@ -857,6 +1002,7 @@ accountsEl.addEventListener("click", (e) => {
   const row = del.closest(".acc-row");
   state.accounts = state.accounts.filter(a => a.id !== row.dataset.id);
   saveState();
+  queuePush();
   renderAccounts();
 });
 document.addEventListener("click", (e) => {
@@ -878,6 +1024,7 @@ addBtn.addEventListener("click", () => {
   state.accounts.push({ id, name: "", owner: "" });
   draft[id] = { amts: [0], skip: false };
   saveState();
+  queuePush();
   renderAccounts();
   const rows = accountsEl.querySelectorAll(".acc-row");
   const nameInput = rows[rows.length - 1].querySelector(".name");
@@ -904,7 +1051,13 @@ saveBtn.addEventListener("click", () => {
   document.getElementById("savedMark").hidden = !any;
   renderDashboard();
   saveBtn.classList.add("saved");
-  saveBtn.textContent = "✓ 保存しました(" + jpDate(dateEl.value) + ")";
+  saveBtn.textContent = "✓ 保存しました(" + jpDate(dateEl.value) + ") 同期中…";
+  dirty = true;
+  cloudPush().then(ok => {
+    saveBtn.textContent = ok
+      ? "✓ 保存して全員に反映しました(" + jpDate(dateEl.value) + ")"
+      : "✓ この端末に保存(全員への反映は未完了 — 下の自動同期を確認)";
+  });
 });
 
 /* チーム共有用テキスト */
@@ -939,6 +1092,9 @@ shareBtn.addEventListener("click", async () => {
 /* ================= 初期化 ================= */
 loadDraft();
 renderDashboard();
+if (syncToken) setSync("ok", "✓ 同期キー設定済み");
+else setSync("nokey", "同期キーが未設定です(閲覧は問題なし。入力を反映するにはキーが必要)");
+cloudPull({ force: true });
 new MutationObserver(() => { renderDashboard(); renderAccounts(); })
   .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 </script>
