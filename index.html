@@ -5,9 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="robots" content="noindex">
 <title>鑑定売上デイリーレース</title>
-
 </head>
 <body>
+
 <style>
   :root {
     --surface: #fcfcfb;
@@ -220,6 +220,25 @@
   .share-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
   footer { font-size: 12px; color: var(--muted); text-align: center; }
+
+  /* ===== 入力ロック ===== */
+  .lock-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 10;
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .lock-card {
+    background: var(--surface); border: 1px solid var(--ring); border-radius: 12px;
+    padding: 22px 22px 18px; width: 100%; max-width: 340px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  }
+  .lock-card h2 { margin: 0 0 4px; font-size: 15.5px; }
+  .lock-note { margin: 0 0 12px; font-size: 12.5px; color: var(--muted); }
+  input#lockPass { width: 100%; font-size: 16px; padding: 9px 10px; border-radius: 8px; border: 1px solid var(--baseline); background: var(--surface); }
+  .lock-err { color: var(--danger); font-size: 12.5px; margin-top: 8px; font-weight: 600; }
+  .lock-actions { display: flex; gap: 8px; margin-top: 14px; }
+  .lock-actions button { flex: 1; font-size: 14px; font-weight: 600; padding: 9px 0; border-radius: 8px; cursor: pointer; }
+  .lock-cancel { border: 1px solid var(--baseline); background: transparent; color: var(--ink-2); }
+  .lock-ok { border: none; background: var(--ink); color: var(--surface); }
 </style>
 
 <div class="wrap">
@@ -291,6 +310,19 @@
   </div>
 
   <footer id="foot"></footer>
+</div>
+
+<div class="lock-overlay" id="lockOverlay" hidden>
+  <div class="lock-card">
+    <h2>売上入力のパスワード</h2>
+    <p class="lock-note">売上の入力・編集は管理者のみ行えます。</p>
+    <input type="password" id="lockPass" placeholder="パスワード" autocomplete="off">
+    <div class="lock-err" id="lockErr" hidden>パスワードが違います</div>
+    <div class="lock-actions">
+      <button type="button" class="lock-cancel" id="lockCancel">キャンセル</button>
+      <button type="button" class="lock-ok" id="lockOk">開く</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -391,7 +423,46 @@ function showTab(which) {
   if (dash) renderDashboard();
 }
 tabDash.addEventListener("click", () => showTab("dash"));
-tabInput.addEventListener("click", () => showTab("input"));
+
+/* ---- 売上入力のパスワードロック(いたずら・誤操作防止) ---- */
+const PASS_HASH = "affca7062546d5ca9225c2c6ed026500e1a355f920e4964f5705ea5df746702e";
+const UNLOCK_KEY = "kantei-unlock-v1";
+let unlocked = store.getItem(UNLOCK_KEY) === PASS_HASH;
+const lockOverlay = document.getElementById("lockOverlay");
+const lockPass = document.getElementById("lockPass");
+const lockErr = document.getElementById("lockErr");
+
+async function sha256hex(s) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, "0")).join("");
+}
+function openLock() {
+  lockOverlay.hidden = false;
+  lockErr.hidden = true;
+  lockPass.value = "";
+  lockPass.focus();
+}
+async function tryUnlock() {
+  let h = "";
+  try { h = await sha256hex(lockPass.value); } catch {}
+  if (h === PASS_HASH) {
+    unlocked = true;
+    try { store.setItem(UNLOCK_KEY, h); } catch {}
+    lockOverlay.hidden = true;
+    showTab("input");
+  } else {
+    lockErr.hidden = false;
+    lockPass.select();
+  }
+}
+document.getElementById("lockOk").addEventListener("click", tryUnlock);
+lockPass.addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
+document.getElementById("lockCancel").addEventListener("click", () => { lockOverlay.hidden = true; });
+
+tabInput.addEventListener("click", () => {
+  if (unlocked) showTab("input");
+  else openLock();
+});
 
 /* ================= ダッシュボード ================= */
 const RANGES = [
