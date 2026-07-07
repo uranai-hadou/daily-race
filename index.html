@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>鑑定売上デイリーレース</title>
+
+</head>
+<body>
+<style>
+  :root {
+    --surface: #fcfcfb;
+    --plane: #f9f9f7;
+    --ink: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --ring: rgba(11,11,11,0.10);
+    --good: #006300;
+    --danger: #d03b3b;
+    --s1: #2a78d6; --s2: #1baf7a; --s3: #eda100; --s4: #008300;
+    --s5: #4a3aa7; --s6: #e34948; --s7: #e87ba4; --s8: #eb6834;
+    --gold: #b8860b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface: #1a1a19; --plane: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7;
+      --muted: #898781; --grid: #2c2c2a; --baseline: #383835; --ring: rgba(255,255,255,0.10);
+      --good: #0ca30c; --danger: #e66767;
+      --s1: #3987e5; --s2: #199e70; --s3: #c98500; --s4: #008300;
+      --s5: #9085e9; --s6: #e66767; --s7: #d55181; --s8: #d95926;
+      --gold: #d4a017;
+    }
+  }
+  :root[data-theme="light"] {
+    --surface: #fcfcfb; --plane: #f9f9f7; --ink: #0b0b0b; --ink-2: #52514e;
+    --muted: #898781; --grid: #e1e0d9; --baseline: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --good: #006300; --danger: #d03b3b;
+    --s1: #2a78d6; --s2: #1baf7a; --s3: #eda100; --s4: #008300;
+    --s5: #4a3aa7; --s6: #e34948; --s7: #e87ba4; --s8: #eb6834; --gold: #b8860b;
+  }
+  :root[data-theme="dark"] {
+    --surface: #1a1a19; --plane: #0d0d0d; --ink: #ffffff; --ink-2: #c3c2b7;
+    --muted: #898781; --grid: #2c2c2a; --baseline: #383835; --ring: rgba(255,255,255,0.10);
+    --good: #0ca30c; --danger: #e66767;
+    --s1: #3987e5; --s2: #199e70; --s3: #c98500; --s4: #008300;
+    --s5: #9085e9; --s6: #e66767; --s7: #d55181; --s8: #d95926; --gold: #d4a017;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Hiragino Sans", "Segoe UI", sans-serif;
+    background: var(--plane);
+    color: var(--ink);
+    line-height: 1.6;
+    padding: 24px 16px 64px;
+  }
+  .wrap { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+  header .eyebrow {
+    font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600;
+  }
+  header h1 { font-size: 24px; margin: 2px 0 0; font-weight: 700; text-wrap: balance; }
+  header .updated { font-size: 13px; color: var(--ink-2); margin-top: 4px; }
+
+  /* tabs */
+  .tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--grid); }
+  .tabs button {
+    font: inherit; font-size: 14px; font-weight: 600; padding: 8px 18px; cursor: pointer;
+    border: none; background: transparent; color: var(--muted);
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+  }
+  .tabs button[aria-pressed="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+  .tabs button:focus-visible { outline: 2px solid var(--s1); outline-offset: -2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--ring); border-radius: 10px; padding: 18px 20px; }
+  h2 { font-size: 15px; margin: 0 0 12px; font-weight: 700; }
+  h2 .note { font-weight: 400; font-size: 12.5px; color: var(--muted); margin-left: 8px; }
+
+  /* ===== dashboard ===== */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  @media (max-width: 640px) { .stats { grid-template-columns: 1fr; } }
+  .stat .label { font-size: 12.5px; color: var(--ink-2); }
+  .stat .value { font-size: 28px; font-weight: 600; margin-top: 2px; }
+  .stat .sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .stat .delta-up { color: var(--good); font-weight: 600; }
+  .stat .delta-down { color: var(--ink-2); }
+  .stat .leader-chip { display: inline-flex; align-items: center; gap: 8px; }
+  .stat .leader-chip .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+
+  .lb-row { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; padding: 10px 0; }
+  .lb-row + .lb-row { border-top: 1px solid var(--grid); }
+  .lb-rank { font-size: 15px; font-weight: 700; color: var(--muted); text-align: center; }
+  .lb-rank.first { color: var(--gold); font-size: 17px; }
+  .lb-main { min-width: 0; }
+  .lb-name { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; flex-wrap: wrap; }
+  .lb-name .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .lb-name .owner { font-weight: 400; font-size: 12px; color: var(--muted); }
+  .lb-name .crown { font-size: 13px; }
+  .lb-meter { height: 8px; border-radius: 4px; background: var(--grid); margin-top: 6px; overflow: hidden; }
+  .lb-meter > i { display: block; height: 100%; border-radius: 4px; }
+  .lb-nums { text-align: right; font-variant-numeric: tabular-nums; }
+  .lb-total { font-size: 16px; font-weight: 600; }
+  .lb-yday { font-size: 12px; color: var(--ink-2); }
+
+  .range { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
+  .range button {
+    font: inherit; font-size: 12.5px; padding: 4px 12px; border-radius: 999px;
+    border: 1px solid var(--ring); background: transparent; color: var(--ink-2); cursor: pointer;
+  }
+  .range button[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); font-weight: 600; }
+  .range button:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+  .chart-box { position: relative; }
+  .chart-box svg { display: block; width: 100%; height: auto; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--ink-2); }
+  .legend .key i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .tip {
+    position: absolute; pointer-events: none; display: none;
+    background: var(--surface); border: 1px solid var(--ring); border-radius: 8px;
+    padding: 8px 12px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    min-width: 150px; z-index: 2;
+  }
+  .tip .tdate { font-weight: 700; margin-bottom: 4px; }
+  .tip .trow { display: flex; align-items: center; gap: 6px; justify-content: space-between; font-variant-numeric: tabular-nums; }
+  .tip .trow .k { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-2); }
+  .tip .trow .k i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .tip .trow .v { font-weight: 600; }
+
+  details summary { cursor: pointer; font-size: 13.5px; font-weight: 600; color: var(--ink-2); }
+  .tbl-scroll { overflow-x: auto; margin-top: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { padding: 6px 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; }
+  thead th { color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--baseline); }
+  tbody tr { border-bottom: 1px solid var(--grid); }
+  tbody td.best { font-weight: 700; }
+
+  .empty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 24px 0; }
+
+  /* ===== input ===== */
+  .field-row { display: flex; flex-direction: column; gap: 6px; }
+  .field-row > label { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+  input, textarea, button { font: inherit; color: var(--ink); }
+  input[type="date"], input[type="text"], input[type="number"] {
+    font-size: 15px; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--baseline); background: var(--surface); width: 100%;
+  }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--s1); outline-offset: 1px; }
+  .date-row { display: flex; gap: 8px; }
+  .date-row .step {
+    flex: none; width: 52px; border: 1px solid var(--baseline); background: var(--surface);
+    border-radius: 8px; cursor: pointer; color: var(--ink-2); font-size: 12px;
+  }
+  .date-hint { font-size: 11.5px; color: var(--muted); }
+  .saved-mark { font-size: 11.5px; color: var(--good); font-weight: 600; }
+
+  .acc-row { padding: 14px 0; display: flex; flex-direction: column; gap: 8px; }
+  .acc-row + .acc-row { border-top: 1px solid var(--grid); }
+  .acc-head { display: flex; align-items: center; gap: 8px; }
+  .acc-head .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .acc-head .acc-id { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; flex: none; width: 18px; }
+  .acc-head input.name { font-weight: 600; }
+  .acc-head .del {
+    flex: none; border: 1px solid var(--ring); background: transparent; color: var(--muted);
+    border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; white-space: nowrap;
+  }
+  .acc-head .del.armed { border-color: var(--danger); color: var(--danger); font-weight: 700; }
+  .acc-body { display: grid; grid-template-columns: 1fr 172px; gap: 8px; align-items: start; }
+  @media (max-width: 430px) { .acc-body { grid-template-columns: 1fr 150px; } }
+  .owner-wrap { position: relative; }
+  .owner-wrap .prefix {
+    position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; color: var(--muted); pointer-events: none;
+  }
+  input.owner { padding-left: 44px; font-size: 14px; }
+  .amt-wrap { position: relative; flex: 1; }
+  .amt-wrap .yen { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none; }
+  input.amt { font-variant-numeric: tabular-nums; padding-left: 24px; text-align: right; }
+  input.amt:disabled { opacity: 0.4; }
+  .items.disabled { opacity: 0.4; pointer-events: none; }
+  .item-row { display: flex; gap: 6px; align-items: center; }
+  .item-row + .item-row { margin-top: 6px; }
+  .item-row .rm {
+    flex: none; width: 32px; height: 36px; border-radius: 6px; border: 1px solid var(--ring);
+    background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; padding: 0;
+  }
+  .add-item {
+    margin-top: 6px; width: 100%; font-size: 12px; padding: 5px 10px; border-radius: 6px; cursor: pointer;
+    border: 1px dashed var(--baseline); background: transparent; color: var(--ink-2);
+  }
+  .acc-total { text-align: right; font-size: 14.5px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .acc-total .lbl { font-weight: 400; font-size: 11.5px; color: var(--muted); margin-right: 6px; }
+  .skip-toggle { display: flex; align-items: center; gap: 6px; }
+  .skip-toggle input[type="checkbox"] { width: 14px; height: 14px; margin: 0; }
+  .skip-toggle label { font-size: 11.5px; color: var(--muted); }
+
+  .add-btn {
+    margin-top: 12px; width: 100%; padding: 10px; border-radius: 8px; cursor: pointer;
+    border: 1px dashed var(--baseline); background: transparent; color: var(--ink-2);
+    font-size: 13.5px; font-weight: 600;
+  }
+  .add-btn:disabled { opacity: 0.45; cursor: default; }
+  .limit-note { font-size: 11.5px; color: var(--muted); margin-top: 6px; text-align: center; }
+
+  .save-btn {
+    font-size: 15px; font-weight: 700; padding: 12px 18px; border-radius: 8px;
+    border: none; background: var(--ink); color: var(--surface); cursor: pointer; width: 100%;
+  }
+  .save-btn.saved { background: var(--good); color: #fff; }
+  .share-btn {
+    font-size: 13.5px; font-weight: 600; padding: 10px 16px; border-radius: 8px;
+    border: 1px solid var(--baseline); background: transparent; color: var(--ink-2); cursor: pointer; width: 100%;
+  }
+  .share-btn.copied { border-color: var(--good); color: var(--good); }
+  .share-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  footer { font-size: 12px; color: var(--muted); text-align: center; }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Daily Sales Race</div>
+    <h1>鑑定文 売上デイリーレース</h1>
+    <div class="updated" id="updated"></div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button type="button" id="tab-dash" aria-pressed="true">ダッシュボード</button>
+    <button type="button" id="tab-input" aria-pressed="false">売上入力</button>
+  </nav>
+
+  <!-- ===== ダッシュボード ===== -->
+  <div id="view-dash" style="display:flex;flex-direction:column;gap:20px;">
+    <section class="stats" id="stats"></section>
+    <section class="card">
+      <h2>今月ランキング<span class="note" id="rank-note"></span></h2>
+      <div id="leaderboard"></div>
+    </section>
+    <section class="card">
+      <h2>デイリー売上の推移</h2>
+      <div class="range" id="range" role="group" aria-label="表示期間"></div>
+      <div class="chart-box" id="chart-box">
+        <svg id="chart" viewBox="0 0 840 340" role="img" aria-label="アカウント別デイリー売上の折れ線グラフ"></svg>
+        <div class="tip" id="tip"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </section>
+    <section class="card">
+      <details>
+        <summary>全データを表で見る</summary>
+        <div class="tbl-scroll" id="tbl"></div>
+      </details>
+    </section>
+  </div>
+
+  <!-- ===== 売上入力 ===== -->
+  <div id="view-input" style="display:none;flex-direction:column;gap:16px;">
+    <section class="card">
+      <div class="field-row">
+        <label for="date">日付(過去の日付もOK)<span class="saved-mark" id="savedMark" hidden> ✓ この日は入力済み(開くと編集できます)</span></label>
+        <div class="date-row">
+          <button type="button" class="step" id="prevDay">◀ 前日</button>
+          <input type="date" id="date">
+          <button type="button" class="step" id="nextDay">翌日 ▶</button>
+        </div>
+        <div class="date-hint">日付を変えれば記入忘れの追加や過去の修正がいつでもできます</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>アカウント別売上(名前・担当者もここで編集できます)</h2>
+      <div id="accounts"></div>
+      <button type="button" class="add-btn" id="addBtn">+ アカウントを追加</button>
+      <div class="limit-note" id="limitNote" hidden>色分けの上限(8アカウント)に達しました</div>
+    </section>
+
+    <section class="card">
+      <button type="button" class="save-btn" id="saveBtn">この日の売上を保存(グラフに即反映)</button>
+      <div style="height:10px"></div>
+      <button type="button" class="share-btn" id="shareBtn">チーム共有用データをコピー</button>
+      <div class="share-note">
+        入力データは<strong>この端末のブラウザ</strong>に保存され、あなたの画面のグラフにはすぐ反映されます。
+        チームメンバーの画面を最新にしたいときは、「チーム共有用データをコピー」を押して、そのテキストをClaudeに送って「反映して」と伝えてください(毎日でなくてもOK)。
+      </div>
+    </section>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<script>
+/* ================================================================
+   BAKED: チーム公開用の焼き込みデータ。「反映して」の依頼を受けたら
+   ユーザーから送られた共有用テキストをここに反映し、versionを+1して
+   再デプロイする。閲覧者のlocalStorageが無い場合はこれが表示される。
+   ================================================================ */
+const BAKED = {
+  version: 1,
+  nextIdx: 5,
+  accounts: [
+    { id: "a", name: "アカウントA", owner: "" },
+    { id: "b", name: "アカウントB", owner: "" },
+    { id: "c", name: "アカウントC", owner: "" },
+    { id: "d", name: "アカウントD", owner: "" },
+    { id: "e", name: "アカウントE", owner: "" },
+  ],
+  sales: {
+    "2026-06-23": { a: 18000, b: 24000, c:  9000, d: 14000 },
+    "2026-06-24": { a: 21000, b: 15000, c: 12000, d: 17000 },
+    "2026-06-25": { a: 15000, b: 27000, c: 15000, d: 11000 },
+    "2026-06-26": { a: 24000, b: 21000, c: 18000, d: 20000 },
+    "2026-06-27": { a: 30000, b: 18000, c: 12000, d: 23000 },
+    "2026-06-28": { a: 27000, b: 33000, c: 21000, d: 15000 },
+    "2026-06-29": { a: 12000, b: 24000, c: 15000, d: 18000 },
+    "2026-06-30": { a: 21000, b: 27000, c: 24000, d: 12000 },
+    "2026-07-01": { a: 24000, b: 18000, c: 15000, d: 21000 },
+    "2026-07-02": { a: 33000, b: 21000, c: 18000, d: 24000 },
+    "2026-07-03": { a: 27000, b: 30000, c: 24000, d: 15000, e:  6000 },
+    "2026-07-04": { a: 36000, b: 24000, c: 21000, d: 27000, e: 12000 },
+    "2026-07-05": { a: 30000, b: 39000, c: 27000, d: 18000, e: 15000 },
+    "2026-07-06": { a: 42000, b: 33000, c: 24000, d: 30000, e: 21000 },
+  },
+};
+/* ================================================================ */
+
+const KEY = "kantei-app-v1";
+const MAX_ACCOUNTS = 8;
+const SLOT_VARS = ["--s1", "--s2", "--s3", "--s4", "--s5", "--s6", "--s7", "--s8"];
+const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const colorOf = (i) => css(SLOT_VARS[i % SLOT_VARS.length]);
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+let store;
+try {
+  localStorage.setItem("__probe", "1");
+  localStorage.removeItem("__probe");
+  store = localStorage;
+} catch {
+  const mem = {};
+  store = { getItem: (k) => (k in mem ? mem[k] : null), setItem: (k, v) => { mem[k] = v; } };
+}
+
+/* ---- 状態の読み込み: localStorage優先、焼き込みデータで補完 ---- */
+let state;
+try { state = JSON.parse(store.getItem(KEY)) || null; } catch { state = null; }
+if (!state || !Array.isArray(state.accounts) || typeof state.sales !== "object" || !state.sales) {
+  state = { ...clone(BAKED), bakedVersion: BAKED.version };
+} else if ((state.bakedVersion || 0) < BAKED.version) {
+  /* 新しい焼き込みデータの日付を補完(端末側の入力を優先) */
+  for (const d in BAKED.sales) if (!(d in state.sales)) state.sales[d] = clone(BAKED.sales[d]);
+  state.bakedVersion = BAKED.version;
+}
+if (typeof state.nextIdx !== "number") state.nextIdx = BAKED.nextIdx;
+/* items: 日ごと・アカウントごとの売上内訳(合算前の金額リスト)。この端末にのみ保存 */
+if (!state.items || typeof state.items !== "object") state.items = {};
+
+const saveState = () => store.setItem(KEY, JSON.stringify(state));
+saveState();
+
+const yen = (n) => "¥" + n.toLocaleString("ja-JP");
+const yenCompact = (n) => n >= 10000 ? (n / 10000).toLocaleString("ja-JP", { maximumFractionDigits: 1 }) + "万" : n.toLocaleString("ja-JP");
+const jpDate = (iso) => { const [y, m, d] = iso.split("-").map(Number); return `${m}/${d}`; };
+const jpDateFull = (iso) => { const [y, m, d] = iso.split("-").map(Number); return `${y}年${m}月${d}日`; };
+const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+const weekday = (iso) => WEEKDAYS[new Date(iso + "T00:00:00").getDay()];
+const val = (d, id) => {
+  const v = state.sales[d] ? state.sales[d][id] : undefined;
+  return typeof v === "number" ? v : null;
+};
+const allDates = () => Object.keys(state.sales).sort();
+const ownerHtml = (ac) => ac.owner && ac.owner.trim() ? `<span class="owner">担当 ${esc(ac.owner)}</span>` : "";
+function esc(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function escAttr(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;"); }
+
+/* ================= タブ ================= */
+const viewDash = document.getElementById("view-dash");
+const viewInput = document.getElementById("view-input");
+const tabDash = document.getElementById("tab-dash");
+const tabInput = document.getElementById("tab-input");
+function showTab(which) {
+  const dash = which === "dash";
+  viewDash.style.display = dash ? "flex" : "none";
+  viewInput.style.display = dash ? "none" : "flex";
+  tabDash.setAttribute("aria-pressed", String(dash));
+  tabInput.setAttribute("aria-pressed", String(!dash));
+  if (dash) renderDashboard();
+}
+tabDash.addEventListener("click", () => showTab("dash"));
+tabInput.addEventListener("click", () => showTab("input"));
+
+/* ================= ダッシュボード ================= */
+const RANGES = [
+  { label: "7日", n: 7 },
+  { label: "14日", n: 14 },
+  { label: "全期間", n: Infinity },
+];
+let rangeN = 14;
+const rangeEl = document.getElementById("range");
+rangeEl.innerHTML = RANGES.map(r =>
+  `<button type="button" data-n="${r.n}" aria-pressed="${r.n === rangeN}">${r.label}</button>`).join("");
+rangeEl.addEventListener("click", (e) => {
+  const b = e.target.closest("button"); if (!b) return;
+  rangeN = b.dataset.n === "Infinity" ? Infinity : Number(b.dataset.n);
+  rangeEl.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  drawChart();
+});
+
+const svg = document.getElementById("chart");
+const tip = document.getElementById("tip");
+const box = document.getElementById("chart-box");
+const NS = "http://www.w3.org/2000/svg";
+const W = 840, H = 340, PAD = { t: 16, r: 96, b: 34, l: 56 };
+
+function niceTicks(max) {
+  const raw = max / 4;
+  const pow = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * pow).find(s => s >= raw) || raw;
+  const ticks = [];
+  for (let v = 0; v <= max + step * 0.001; v += step) ticks.push(Math.round(v));
+  return ticks;
+}
+function el(name, attrs, text) {
+  const n = document.createElementNS(NS, name);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (text != null) n.textContent = text;
+  return n;
+}
+
+let view = { ds: [], x: () => 0, y: () => 0 };
+
+function renderDashboard() {
+  const dates = allDates();
+  const foot = document.getElementById("foot");
+  foot.textContent = "売上データはあなたの端末に保存されています。チーム公開版の更新はClaudeに「反映して」と伝えてください。";
+
+  if (!dates.length) {
+    document.getElementById("updated").textContent = "まだデータがありません";
+    document.getElementById("stats").innerHTML = `<div class="card empty" style="grid-column:1/-1">「売上入力」タブから最初のデータを入力してください</div>`;
+    document.getElementById("leaderboard").innerHTML = `<div class="empty">データなし</div>`;
+    svg.textContent = "";
+    document.getElementById("legend").innerHTML = "";
+    document.getElementById("tbl").innerHTML = "";
+    return;
+  }
+
+  const latest = dates[dates.length - 1];
+  const latestMonth = latest.slice(0, 7);
+  const monthDates = dates.filter(d => d.slice(0, 7) === latestMonth);
+  const monthTotals = state.accounts.map((ac, i) => ({
+    ...ac, idx: i,
+    total: monthDates.reduce((s, d) => s + (val(d, ac.id) || 0), 0),
+    yday: val(latest, ac.id),
+  }));
+  const ranking = [...monthTotals].sort((x, y) => y.total - x.total);
+  const leader = ranking[0];
+  const lm = Number(latest.split("-")[1]);
+
+  document.getElementById("updated").textContent =
+    `最終更新: ${jpDateFull(latest)}(${weekday(latest)})の売上まで反映`;
+  document.getElementById("rank-note").textContent = `${lm}月の累計売上で順位づけ`;
+
+  const ydayTotal = state.accounts.reduce((s, ac) => s + (val(latest, ac.id) || 0), 0);
+  const prev = dates[dates.length - 2];
+  const prevTotal = prev ? state.accounts.reduce((s, ac) => s + (val(prev, ac.id) || 0), 0) : null;
+  const monthTotal = monthTotals.reduce((s, r) => s + r.total, 0);
+  const delta = prevTotal != null ? ydayTotal - prevTotal : null;
+  const deltaHtml = delta == null ? "" :
+    delta >= 0
+      ? `<span class="delta-up">+${yen(delta)}</span> 前日比`
+      : `<span class="delta-down">−${yen(-delta)}</span> 前日比`;
+
+  document.getElementById("stats").innerHTML = `
+    <div class="card stat">
+      <div class="label">直近(${jpDate(latest)})の合計売上</div>
+      <div class="value">${yen(ydayTotal)}</div>
+      <div class="sub">${deltaHtml}</div>
+    </div>
+    <div class="card stat">
+      <div class="label">${lm}月の合計売上</div>
+      <div class="value">${yen(monthTotal)}</div>
+      <div class="sub">${monthDates.length}日分</div>
+    </div>
+    <div class="card stat">
+      <div class="label">現在の首位</div>
+      <div class="value leader-chip"><span class="dot" style="background:${colorOf(leader.idx)}"></span>${esc(leader.name) || "—"}</div>
+      <div class="sub">${lm}月累計 ${yen(leader.total)}</div>
+    </div>`;
+
+  document.getElementById("leaderboard").innerHTML = ranking.map((r, rank) => {
+    const w = leader.total ? Math.max(2, Math.round(r.total / leader.total * 100)) : 0;
+    return `
+    <div class="lb-row">
+      <div class="lb-rank ${rank === 0 ? "first" : ""}">${rank + 1}</div>
+      <div class="lb-main">
+        <div class="lb-name">
+          <span class="dot" style="background:${colorOf(r.idx)}"></span>
+          ${esc(r.name)}${rank === 0 ? ' <span class="crown">👑</span>' : ""}
+          ${ownerHtml(r)}
+        </div>
+        <div class="lb-meter"><i style="width:${w}%;background:${colorOf(r.idx)}"></i></div>
+      </div>
+      <div class="lb-nums">
+        <div class="lb-total">${yen(r.total)}</div>
+        <div class="lb-yday">${r.yday == null ? "直近 —" : "直近 " + yen(r.yday)}</div>
+      </div>
+    </div>`;
+  }).join("");
+
+  document.getElementById("legend").innerHTML = state.accounts.map((ac, i) =>
+    `<span class="key"><i style="background:${colorOf(i)}"></i>${esc(ac.name)}</span>`).join("");
+
+  const desc = [...dates].reverse();
+  document.getElementById("tbl").innerHTML = `
+  <table>
+    <thead><tr><th>日付</th>${state.accounts.map(a => `<th>${esc(a.name)}</th>`).join("")}<th>合計</th></tr></thead>
+    <tbody>${desc.map(d => {
+      const vals = state.accounts.map(a => val(d, a.id));
+      const present = vals.filter(v => v != null);
+      const mx = present.length ? Math.max(...present) : 0;
+      const sum = present.reduce((s, v) => s + v, 0);
+      return `<tr><td>${jpDate(d)}(${weekday(d)})</td>${vals.map(v =>
+        v == null ? `<td>—</td>` :
+        `<td class="${v === mx && v > 0 ? "best" : ""}">${yen(v)}</td>`).join("")}<td>${yen(sum)}</td></tr>`;
+    }).join("")}</tbody>
+  </table>`;
+
+  drawChart();
+}
+
+function drawChart() {
+  const dates = allDates();
+  svg.textContent = "";
+  if (!dates.length) return;
+  const ds = rangeN === Infinity ? dates : dates.slice(-rangeN);
+  const definedVals = ds.flatMap(d => state.accounts.map(ac => val(d, ac.id))).filter(v => v != null);
+  const max = definedVals.length ? Math.max(...definedVals, 1) : 1;
+  const ticks = niceTicks(max * 1.08);
+  const top = ticks[ticks.length - 1];
+  const x = (i) => ds.length === 1 ? (PAD.l + (W - PAD.l - PAD.r) / 2)
+    : PAD.l + (W - PAD.l - PAD.r) * i / (ds.length - 1);
+  const y = (v) => H - PAD.b - (H - PAD.t - PAD.b) * v / top;
+  view = { ds, x, y };
+
+  for (const t of ticks) {
+    svg.appendChild(el("line", { x1: PAD.l, x2: W - PAD.r, y1: y(t), y2: y(t), stroke: css(t === 0 ? "--baseline" : "--grid"), "stroke-width": 1 }));
+    svg.appendChild(el("text", { x: PAD.l - 8, y: y(t) + 4, "text-anchor": "end", "font-size": 11, fill: css("--muted") }, yenCompact(t)));
+  }
+  const every = Math.ceil(ds.length / 10);
+  ds.forEach((d, i) => {
+    if (i % every !== 0 && i !== ds.length - 1) return;
+    svg.appendChild(el("text", { x: x(i), y: H - PAD.b + 18, "text-anchor": "middle", "font-size": 11, fill: css("--muted") }, jpDate(d)));
+  });
+
+  const surface = css("--surface");
+  const endYs = [];
+  state.accounts.forEach((ac, ai) => {
+    const c = colorOf(ai);
+    const segs = [];
+    let cur = [];
+    ds.forEach((d, i) => {
+      const v = val(d, ac.id);
+      if (v == null) { if (cur.length) segs.push(cur); cur = []; }
+      else cur.push([x(i), y(v)]);
+    });
+    if (cur.length) segs.push(cur);
+    if (!segs.length) return;
+    for (const seg of segs) {
+      if (seg.length === 1) {
+        svg.appendChild(el("circle", { cx: seg[0][0], cy: seg[0][1], r: 3.5, fill: c }));
+      } else {
+        svg.appendChild(el("polyline", {
+          points: seg.map(p => p.join(",")).join(" "),
+          fill: "none", stroke: c, "stroke-width": 2,
+          "stroke-linejoin": "round", "stroke-linecap": "round",
+        }));
+      }
+    }
+    const lastSeg = segs[segs.length - 1];
+    const [ex, ey] = lastSeg[lastSeg.length - 1];
+    svg.appendChild(el("circle", { cx: ex, cy: ey, r: 6, fill: surface }));
+    svg.appendChild(el("circle", { cx: ex, cy: ey, r: 4, fill: c }));
+    endYs.push({ ey, ex, name: ac.name });
+  });
+
+  endYs.sort((p, q) => p.ey - q.ey);
+  const MIN_GAP = 16;
+  for (let i = 1; i < endYs.length; i++) {
+    if (endYs[i].ly == null) endYs[i - 1].ly = endYs[i - 1].ly ?? endYs[i - 1].ey;
+    endYs[i].ly = Math.max(endYs[i].ey, (endYs[i - 1].ly ?? endYs[i - 1].ey) + MIN_GAP);
+  }
+  endYs.forEach(p => {
+    const ly = p.ly ?? p.ey;
+    if (Math.abs(ly - p.ey) > 2) {
+      svg.appendChild(el("line", { x1: p.ex + 7, x2: p.ex + 16, y1: p.ey, y2: ly, stroke: css("--baseline"), "stroke-width": 1 }));
+    }
+    svg.appendChild(el("text", { x: p.ex + 19, y: ly + 4, "font-size": 11.5, "font-weight": 600, fill: css("--ink-2") }, p.name));
+  });
+
+  svg.appendChild(el("rect", { x: PAD.l, y: PAD.t, width: W - PAD.l - PAD.r, height: H - PAD.t - PAD.b, fill: "transparent", id: "hover-zone" }));
+}
+
+let crosshair = null;
+svg.addEventListener("pointermove", (e) => {
+  const { ds, x, y } = view;
+  if (!ds.length) return;
+  const r = svg.getBoundingClientRect();
+  const sx = (e.clientX - r.left) * W / r.width;
+  if (sx < PAD.l - 10 || sx > W - PAD.r + 10) { hideTip(); return; }
+  let best = 0, bd = Infinity;
+  ds.forEach((d, i) => { const dd = Math.abs(x(i) - sx); if (dd < bd) { bd = dd; best = i; } });
+  const d = ds[best];
+
+  if (crosshair) crosshair.remove();
+  crosshair = el("line", { x1: x(best), x2: x(best), y1: PAD.t, y2: H - PAD.b, stroke: css("--baseline"), "stroke-width": 1 });
+  svg.insertBefore(crosshair, svg.querySelector("#hover-zone"));
+
+  const rows = state.accounts.map((ac, i) => ({ name: ac.name, v: val(d, ac.id), c: colorOf(i) }))
+    .filter(row => row.v != null)
+    .sort((a, b) => b.v - a.v);
+  if (!rows.length) { hideTip(); return; }
+  tip.innerHTML = `<div class="tdate">${jpDate(d)}(${weekday(d)})</div>` +
+    rows.map(row => `<div class="trow"><span class="k"><i style="background:${row.c}"></i>${esc(row.name)}</span><span class="v">${yen(row.v)}</span></div>`).join("");
+  tip.style.display = "block";
+  const bx = box.getBoundingClientRect();
+  const px = x(best) * bx.width / W;
+  const flip = px > bx.width * 0.6;
+  tip.style.left = flip ? (px - tip.offsetWidth - 14) + "px" : (px + 14) + "px";
+  tip.style.top = Math.max(0, (e.clientY - bx.top) - tip.offsetHeight - 12) + "px";
+});
+svg.addEventListener("pointerleave", hideTip);
+function hideTip() { tip.style.display = "none"; if (crosshair) { crosshair.remove(); crosshair = null; } }
+
+/* ================= 売上入力 ================= */
+/* 入力欄の一時状態(保存ボタンを押すまでstateには書かない) */
+let draft = {}; /* id -> {amt, skip} */
+
+const dateEl = document.getElementById("date");
+const pad2 = (n) => String(n).padStart(2, "0");
+{
+  const yd = new Date();
+  yd.setDate(yd.getDate() - 1);
+  dateEl.value = `${yd.getFullYear()}-${pad2(yd.getMonth() + 1)}-${pad2(yd.getDate())}`;
+}
+const shiftDate = (delta) => {
+  const [y, m, d] = dateEl.value.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + delta);
+  dateEl.value = `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+  loadDraft();
+};
+document.getElementById("prevDay").addEventListener("click", () => shiftDate(-1));
+document.getElementById("nextDay").addEventListener("click", () => shiftDate(1));
+dateEl.addEventListener("input", loadDraft);
+
+/* 選択した日付の既存データを入力欄に読み込む(内訳があれば内訳ごと復元) */
+const sumOf = (arr) => arr.reduce((s, v) => s + (Math.max(0, Math.round(Number(v) || 0))), 0);
+function loadDraft() {
+  const day = state.sales[dateEl.value];
+  const itemsDay = state.items[dateEl.value] || {};
+  draft = {};
+  state.accounts.forEach(ac => {
+    const stored = Array.isArray(itemsDay[ac.id]) && itemsDay[ac.id].length ? itemsDay[ac.id].slice() : null;
+    if (day && typeof day[ac.id] === "number") draft[ac.id] = { amts: stored || [day[ac.id]], skip: false };
+    else if (day) draft[ac.id] = { amts: [0], skip: true };
+    else draft[ac.id] = { amts: stored || [0], skip: false };
+  });
+  document.getElementById("savedMark").hidden = !day;
+  renderAccounts();
+}
+
+const accountsEl = document.getElementById("accounts");
+const addBtn = document.getElementById("addBtn");
+const limitNote = document.getElementById("limitNote");
+const saveBtn = document.getElementById("saveBtn");
+
+function renderAccounts() {
+  accountsEl.innerHTML = state.accounts.map((ac, i) => {
+    const d = draft[ac.id] || (draft[ac.id] = { amts: [0], skip: false });
+    return `
+  <div class="acc-row" data-id="${ac.id}">
+    <div class="acc-head">
+      <span class="dot" style="background:${colorOf(i)}"></span>
+      <span class="acc-id">${ac.id}</span>
+      <input type="text" class="name" data-field="name" value="${escAttr(ac.name)}" placeholder="アカウント名">
+      <button type="button" class="del">削除</button>
+    </div>
+    <div class="acc-body">
+      <div class="owner-wrap">
+        <span class="prefix">担当</span>
+        <input type="text" class="owner" data-field="owner" value="${escAttr(ac.owner)}" placeholder="名前">
+      </div>
+      <div class="items ${d.skip ? "disabled" : ""}">
+        ${d.amts.map((a, idx) => `
+        <div class="item-row">
+          <div class="amt-wrap">
+            <span class="yen">¥</span>
+            <input type="number" class="amt" data-field="amt" data-idx="${idx}" inputmode="numeric" min="0" step="1"
+              value="${a}" ${d.skip ? "disabled" : ""}>
+          </div>
+          ${d.amts.length > 1 ? `<button type="button" class="rm" data-idx="${idx}" aria-label="この売上を削除">✕</button>` : ""}
+        </div>`).join("")}
+        <button type="button" class="add-item">+ 売上を追加(自動で合算)</button>
+        <div class="acc-total"><span class="lbl">合計</span>${yen(sumOf(d.amts))}</div>
+      </div>
+      <div class="skip-toggle" style="grid-column: 1 / -1;">
+        <input type="checkbox" id="skip-${ac.id}" data-field="skip" ${d.skip ? "checked" : ""}>
+        <label for="skip-${ac.id}">この日は未実施(データなし)</label>
+      </div>
+    </div>
+  </div>`;
+  }).join("");
+  const full = state.accounts.length >= MAX_ACCOUNTS;
+  addBtn.disabled = full;
+  limitNote.hidden = !full;
+  resetSaveBtn();
+}
+
+function resetSaveBtn() {
+  saveBtn.classList.remove("saved");
+  saveBtn.textContent = "この日の売上を保存(グラフに即反映)";
+}
+
+accountsEl.addEventListener("input", (e) => {
+  const row = e.target.closest(".acc-row"); if (!row) return;
+  const ac = state.accounts.find(a => a.id === row.dataset.id); if (!ac) return;
+  const f = e.target.dataset.field;
+  if (f === "name") { ac.name = e.target.value; saveState(); }
+  if (f === "owner") { ac.owner = e.target.value; saveState(); }
+  if (f === "amt") {
+    const d = draft[ac.id] = draft[ac.id] || { amts: [0], skip: false };
+    d.amts[Number(e.target.dataset.idx)] = Math.max(0, Math.round(Number(e.target.value) || 0));
+    const totalEl = row.querySelector(".acc-total");
+    if (totalEl) totalEl.innerHTML = `<span class="lbl">合計</span>${yen(sumOf(d.amts))}`;
+  }
+  if (f === "skip") {
+    const d = draft[ac.id] = draft[ac.id] || { amts: [0], skip: false };
+    d.skip = e.target.checked;
+    renderAccounts();
+  }
+  resetSaveBtn();
+});
+
+accountsEl.addEventListener("click", (e) => {
+  const row0 = e.target.closest(".acc-row");
+  /* 内訳の追加・削除 */
+  const addI = e.target.closest(".add-item");
+  if (addI && row0) {
+    const d = draft[row0.dataset.id];
+    if (d) {
+      d.amts.push(0);
+      renderAccounts();
+      const newRow = accountsEl.querySelector(`.acc-row[data-id="${row0.dataset.id}"]`);
+      const inputs = newRow ? newRow.querySelectorAll(".amt") : [];
+      if (inputs.length) inputs[inputs.length - 1].focus();
+    }
+    return;
+  }
+  const rm = e.target.closest(".rm");
+  if (rm && row0) {
+    const d = draft[row0.dataset.id];
+    if (d && d.amts.length > 1) {
+      d.amts.splice(Number(rm.dataset.idx), 1);
+      renderAccounts();
+    }
+    return;
+  }
+  const del = e.target.closest(".del"); if (!del) return;
+  if (!del.classList.contains("armed")) {
+    accountsEl.querySelectorAll(".del.armed").forEach(b => { b.classList.remove("armed"); b.textContent = "削除"; });
+    del.classList.add("armed");
+    del.textContent = "本当に削除?";
+    return;
+  }
+  const row = del.closest(".acc-row");
+  state.accounts = state.accounts.filter(a => a.id !== row.dataset.id);
+  saveState();
+  renderAccounts();
+});
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".del")) {
+    accountsEl.querySelectorAll(".del.armed").forEach(b => { b.classList.remove("armed"); b.textContent = "削除"; });
+  }
+});
+
+const idFor = (n) => {
+  let s = "", x = n;
+  do { s = String.fromCharCode(97 + (x % 26)) + s; x = Math.floor(x / 26) - 1; } while (x >= 0);
+  return s;
+};
+addBtn.addEventListener("click", () => {
+  if (state.accounts.length >= MAX_ACCOUNTS) return;
+  const usedIds = new Set(state.accounts.map(a => a.id));
+  let id;
+  do { id = idFor(state.nextIdx); state.nextIdx += 1; } while (usedIds.has(id));
+  state.accounts.push({ id, name: "", owner: "" });
+  draft[id] = { amts: [0], skip: false };
+  saveState();
+  renderAccounts();
+  const rows = accountsEl.querySelectorAll(".acc-row");
+  const nameInput = rows[rows.length - 1].querySelector(".name");
+  if (nameInput) nameInput.focus();
+});
+
+/* 保存: draftをstate.salesに書き込み、ダッシュボードを更新 */
+saveBtn.addEventListener("click", () => {
+  const day = {};
+  const itemsDay = {};
+  let any = false;
+  state.accounts.forEach(ac => {
+    const d = draft[ac.id];
+    if (d && !d.skip) {
+      const amts = d.amts.map(v => Math.max(0, Math.round(Number(v) || 0)));
+      day[ac.id] = sumOf(amts);
+      itemsDay[ac.id] = amts;
+      any = true;
+    }
+  });
+  if (any) { state.sales[dateEl.value] = day; state.items[dateEl.value] = itemsDay; }
+  else { delete state.sales[dateEl.value]; delete state.items[dateEl.value]; }
+  saveState();
+  document.getElementById("savedMark").hidden = !any;
+  renderDashboard();
+  saveBtn.classList.add("saved");
+  saveBtn.textContent = "✓ 保存しました(" + jpDate(dateEl.value) + ")";
+});
+
+/* チーム共有用テキスト */
+const shareBtn = document.getElementById("shareBtn");
+shareBtn.addEventListener("click", async () => {
+  const dates = allDates();
+  const roster = state.accounts
+    .map(ac => `${ac.id.toUpperCase()}=${(ac.name.trim() || "(名称未設定)")}${ac.owner.trim() ? "/" + ac.owner.trim() : ""}`)
+    .join(", ");
+  const lines = [...dates].reverse().map(d => {
+    const day = state.sales[d];
+    const parts = state.accounts.filter(ac => typeof day[ac.id] === "number")
+      .map(ac => `${ac.id.toUpperCase()} ${day[ac.id]}`);
+    return `${d}: ${parts.join(", ")}`;
+  });
+  const text = `=== 鑑定売上データ(共有用) ===\nアカウント: ${roster}\n${lines.join("\n")}`;
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  document.body.appendChild(ta);
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    ta.select();
+    document.execCommand("copy");
+  }
+  ta.remove();
+  shareBtn.textContent = "✓ コピーしました — Claudeに送って「反映して」と伝えてください";
+  shareBtn.classList.add("copied");
+  setTimeout(() => { shareBtn.textContent = "チーム共有用データをコピー"; shareBtn.classList.remove("copied"); }, 6000);
+});
+
+/* ================= 初期化 ================= */
+loadDraft();
+renderDashboard();
+new MutationObserver(() => { renderDashboard(); renderAccounts(); })
+  .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+</script>
+
+</body>
+</html>
