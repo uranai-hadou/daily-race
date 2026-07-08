@@ -323,7 +323,9 @@
       <h2>自動同期</h2>
       <div class="sync-status" id="syncStatus">確認中…</div>
       <div class="sync-key" id="syncKeyRow" hidden>
-        <input type="password" id="tokenInput" placeholder="同期キー(github_pat_…)" autocomplete="off">
+        <input type="text" id="tokenInput" placeholder="同期キー(github_pat_…)"
+          autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false"
+          name="daily-race-sync-key" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;">
         <button type="button" id="tokenSave">キーを保存</button>
       </div>
       <div class="share-note">同期キーをこの端末に一度保存すれば、以後は「保存」を押すだけで全端末・チーム全員に自動反映されます。キーは管理者(あなた)の端末にだけ入れてください。</div>
@@ -536,18 +538,28 @@ function queuePush() {
 }
 
 document.getElementById("tokenSave").addEventListener("click", async () => {
-  const v = document.getElementById("tokenInput").value.trim();
+  /* 貼り付け時に紛れた空白・改行をすべて除去(前後だけでなく途中も) */
+  const raw = document.getElementById("tokenInput").value;
+  const v = raw.replace(/\s+/g, "");
   if (!v) return;
+  if (!/^github_pat_/.test(v)) {
+    setSync("err", "⚠ キーの形式が違います(github_pat_ で始まる文字列を貼ってください)");
+    return;
+  }
   syncToken = v;
-  try { store.setItem(TOKEN_KEY, v); } catch {}
   setSync("info", "キーを確認中…");
   try {
     await cloudFetch(true);
+    try { store.setItem(TOKEN_KEY, v); } catch {}
     setSync("ok", "✓ 同期キーを設定しました");
     document.getElementById("tokenInput").value = "";
     if (dirty) cloudPush();
-  } catch {
-    setSync("err", "⚠ キーが無効です(コピーミスがないか確認してください)");
+  } catch (err) {
+    const m = String(err && err.message || "");
+    if (m.indexOf("401") >= 0) setSync("err", "⚠ GitHubがキーを拒否しました(401)。キーを再発行して貼り直してください");
+    else if (m.indexOf("404") >= 0) setSync("err", "⚠ キーにこのリポジトリの権限がありません(404)。Contents権限とリポジトリ選択を確認してください");
+    else if (m.indexOf("HTTP") >= 0) setSync("err", "⚠ 同期に失敗(" + m + ")。少し待って再度お試しください");
+    else setSync("err", "⚠ 通信できませんでした。ネット接続を確認してもう一度お試しください");
   }
 });
 
