@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-07-08T00:59:05.890Z",
+ "updatedAt": "2026-07-08T01:18:51.343Z",
  "nextIdx": 5,
  "accounts": [
   {
@@ -9,8 +9,8 @@
   },
   {
    "id": "b",
-   "name": "アカウントB",
-   "owner": ""
+   "name": "銀狐",
+   "owner": "さ"
   }
  ],
  "sales": {
