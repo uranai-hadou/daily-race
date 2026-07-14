@@ -650,8 +650,10 @@ function niceTicks(max) {
   const raw = max / 4;
   const pow = Math.pow(10, Math.floor(Math.log10(raw)));
   const step = [1, 2, 2.5, 5, 10].map(m => m * pow).find(s => s >= raw) || raw;
+  // 最上段の目盛りが必ずデータ最大値以上になるよう切り上げる(ピークの見切れ防止)
+  const top = Math.ceil(max / step - 1e-9) * step;
   const ticks = [];
-  for (let v = 0; v <= max + step * 0.001; v += step) ticks.push(Math.round(v));
+  for (let v = 0; v <= top + step * 0.001; v += step) ticks.push(Math.round(v));
   return ticks;
 }
 function el(name, attrs, text) {
@@ -775,7 +777,7 @@ function drawChart() {
   }
   const definedVals = ds.flatMap(d => state.accounts.map(ac => val(d, ac.id))).filter(v => v != null);
   const max = definedVals.length ? Math.max(...definedVals, 1) : 1;
-  const ticks = niceTicks(max * 1.08);
+  const ticks = niceTicks(max);
   const top = ticks[ticks.length - 1];
   const x = (i) => ds.length === 1 ? (PAD.l + (W - PAD.l - PAD.r) / 2)
     : PAD.l + (W - PAD.l - PAD.r) * i / (ds.length - 1);
