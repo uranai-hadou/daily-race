@@ -140,6 +140,19 @@
   tbody tr { border-bottom: 1px solid var(--grid); }
   tbody td.best { font-weight: 700; }
 
+  /* 月×アカウント マトリクス */
+  #monthly table td { padding-top: 9px; padding-bottom: 9px; }
+  .mcell { display: inline-flex; flex-direction: column; align-items: flex-end; gap: 4px; min-width: 78px; }
+  .mcell .mv { font-weight: 600; }
+  .mcell .mv.mz { color: var(--muted); font-weight: 400; }
+  .mbar { width: 100%; height: 5px; border-radius: 3px; background: var(--grid); overflow: hidden; }
+  .mbar > i { display: block; height: 100%; border-radius: 3px; }
+  .mlead { font-size: 10px; font-weight: 700; color: var(--gold); margin-left: 5px; letter-spacing: .03em; }
+  .mmo .mdays { color: var(--muted); font-weight: 400; font-size: 11px; margin-left: 6px; }
+  #monthly thead th .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 5px; vertical-align: 0; }
+  #monthly tbody tr.mcum td { border-top: 2px solid var(--baseline); border-bottom: 0; font-weight: 700; padding-top: 11px; }
+  #monthly .mmo { font-weight: 600; }
+
   .empty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 24px 0; }
 
   /* ===== input ===== */
@@ -268,6 +281,10 @@
   <div id="view-dash" style="display:flex;flex-direction:column;gap:20px;">
     <section class="stats" id="stats"></section>
     <section class="card">
+      <h2>月 × アカウント<span class="note">各月の売上を一望(全期間)</span></h2>
+      <div class="tbl-scroll" id="monthly"></div>
+    </section>
+    <section class="card">
       <h2>今月ランキング<span class="note" id="rank-note"></span></h2>
       <div id="leaderboard"></div>
     </section>
@@ -355,30 +372,56 @@
    再デプロイする。閲覧者のlocalStorageが無い場合はこれが表示される。
    ================================================================ */
 const BAKED = {
-  version: 1,
+  version: 2,
   nextIdx: 5,
   accounts: [
-    { id: "a", name: "アカウントA", owner: "" },
-    { id: "b", name: "アカウントB", owner: "" },
-    { id: "c", name: "アカウントC", owner: "" },
-    { id: "d", name: "アカウントD", owner: "" },
-    { id: "e", name: "アカウントE", owner: "" },
+    { id: "a", name: "澪", owner: "りょうすけ" },
+    { id: "b", name: "銀狐", owner: "りょうすけ" },
   ],
   sales: {
-    "2026-06-23": { a: 18000, b: 24000, c:  9000, d: 14000 },
-    "2026-06-24": { a: 21000, b: 15000, c: 12000, d: 17000 },
-    "2026-06-25": { a: 15000, b: 27000, c: 15000, d: 11000 },
-    "2026-06-26": { a: 24000, b: 21000, c: 18000, d: 20000 },
-    "2026-06-27": { a: 30000, b: 18000, c: 12000, d: 23000 },
-    "2026-06-28": { a: 27000, b: 33000, c: 21000, d: 15000 },
-    "2026-06-29": { a: 12000, b: 24000, c: 15000, d: 18000 },
-    "2026-06-30": { a: 21000, b: 27000, c: 24000, d: 12000 },
-    "2026-07-01": { a: 24000, b: 18000, c: 15000, d: 21000 },
-    "2026-07-02": { a: 33000, b: 21000, c: 18000, d: 24000 },
-    "2026-07-03": { a: 27000, b: 30000, c: 24000, d: 15000, e:  6000 },
-    "2026-07-04": { a: 36000, b: 24000, c: 21000, d: 27000, e: 12000 },
-    "2026-07-05": { a: 30000, b: 39000, c: 27000, d: 18000, e: 15000 },
-    "2026-07-06": { a: 42000, b: 33000, c: 24000, d: 30000, e: 21000 },
+    "2026-06-23": {"a": 0, "b": 0, "c": 0, "d": 0},
+    "2026-06-24": {"a": 0, "b": 0, "c": 0, "d": 0},
+    "2026-06-25": {"a": 0, "b": 0, "c": 0, "d": 0},
+    "2026-06-26": {"a": 0, "b": 0, "c": 0, "d": 0},
+    "2026-06-27": {"a": 0, "b": 0, "c": 0, "d": 0},
+    "2026-06-28": {"a": 0, "b": 0, "c": 0, "d": 0},
+    "2026-06-29": {"a": 0, "b": 0, "c": 0, "d": 0},
+    "2026-06-30": {"a": 0, "b": 0, "c": 0, "d": 0},
+    "2026-07-01": {"a": 0, "b": 0},
+    "2026-07-02": {"a": 0, "b": 0},
+    "2026-07-03": {"a": 44100, "b": 0},
+    "2026-07-04": {"a": 19600, "b": 0},
+    "2026-07-05": {"a": 24500, "b": 0},
+    "2026-07-06": {"a": 39200, "b": 0},
+    "2026-07-07": {"a": 19600, "b": 0},
+    "2026-07-08": {"a": 39200, "b": 0},
+    "2026-07-09": {"a": 19600, "b": 0},
+    "2026-07-10": {"a": 44100, "b": 0},
+    "2026-07-11": {"a": 39200, "b": 0},
+    "2026-07-12": {"a": 49000, "b": 0},
+    "2026-07-13": {"a": 39200, "b": 19600},
+    "2026-07-14": {"a": 14700, "b": 9800},
+    "2026-07-15": {"a": 4900, "b": 0},
+    "2026-07-16": {"a": 32400, "b": 0},
+    "2026-07-17": {"a": 24500, "b": 0},
+    "2026-07-18": {"a": 9800, "b": 0},
+    "2026-07-19": {"a": 9800, "b": 9800},
+    "2026-07-20": {"a": 9800, "b": 0},
+    "2026-07-21": {"a": 9800, "b": 0},
+    "2026-07-22": {"a": 29400, "b": 0},
+    "2026-07-23": {"a": 19600, "b": 0},
+    "2026-07-24": {"a": 9800, "b": 0},
+    "2026-07-25": {"a": 27860, "b": 4900},
+    "2026-07-26": {"a": 57260, "b": 0},
+    "2026-07-27": {"a": 19600, "b": 0},
+    "2026-07-28": {"a": 23580, "b": 19600},
+    "2026-07-29": {"a": 19600, "b": 9800},
+    "2026-07-30": {"a": 4900, "b": 0},
+    "2026-07-31": {"a": 4900, "b": 0},
+    "2026-08-01": {"a": 24500, "b": 0},
+    "2026-08-02": {"a": 0, "b": 19600},
+    "2026-08-03": {"a": 9800, "b": 29400},
+    "2026-08-04": {"a": 9800, "b": 9800},
   },
 };
 /* ================================================================ */
@@ -470,6 +513,14 @@ async function cloudFetch(withToken) {
   return JSON.parse(b64decode(j.content));
 }
 
+/* 閲覧用の読み取りは同一オリジンの data.json から(合言葉ゲートの内側)。
+   リポジトリを private 化しても、この静的ファイルはCloudflareが認証済みの人にだけ配信する。 */
+async function siteFetchData() {
+  const r = await fetch("./data.json?t=" + Date.now(), { cache: "no-store" });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return await r.json();
+}
+
 function adoptCloud(data) {
   if (!data || !Array.isArray(data.accounts) || !data.accounts.length || typeof data.sales !== "object" || !data.sales) return false;
   state.accounts = data.accounts;
@@ -482,7 +533,7 @@ function adoptCloud(data) {
 async function cloudPull(opts) {
   const force = opts && opts.force;
   try {
-    const data = await cloudFetch(false);
+    const data = await siteFetchData();
     if (dirty && !force) return; /* 未送信のローカル変更を優先 */
     /* 管理者が入力タブを開いて編集中の間は、勝手に上書きしない */
     if (!force && viewInput.style.display !== "none") return;
@@ -665,6 +716,49 @@ function el(name, attrs, text) {
 
 let view = { ds: [], x: () => 0, y: () => 0 };
 
+/* 月 × アカウント マトリクス(全期間) */
+function renderMonthly() {
+  const boxM = document.getElementById("monthly");
+  const dates = allDates();
+  if (!dates.length) { boxM.innerHTML = `<div class="empty">データなし</div>`; return; }
+  const accs = state.accounts;
+  const months = [...new Set(dates.map(d => d.slice(0, 7)))].sort();
+  const sum = {}, colMax = {};
+  accs.forEach(a => colMax[a.id] = 0);
+  months.forEach(m => {
+    sum[m] = { total: 0, days: 0 };
+    accs.forEach(a => sum[m][a.id] = 0);
+    dates.filter(d => d.slice(0, 7) === m).forEach(d => {
+      sum[m].days++;
+      accs.forEach(a => { const v = val(d, a.id) || 0; sum[m][a.id] += v; sum[m].total += v; });
+    });
+    accs.forEach(a => { if (sum[m][a.id] > colMax[a.id]) colMax[a.id] = sum[m][a.id]; });
+  });
+  const cum = {}; accs.forEach(a => cum[a.id] = 0); let cumTot = 0;
+  months.forEach(m => { accs.forEach(a => cum[a.id] += sum[m][a.id]); cumTot += sum[m].total; });
+  const moLabel = m => Number(m.slice(5, 7)) + "月";
+
+  const body = months.map(m => {
+    const tds = accs.map((a, i) => {
+      const v = sum[m][a.id];
+      const lead = v > 0 && accs.every(o => o.id === a.id || v >= sum[m][o.id]);
+      const w = colMax[a.id] ? Math.round(v / colMax[a.id] * 100) : 0;
+      return `<td><span class="mcell">
+        <span class="mv ${v === 0 ? "mz" : ""}">${v === 0 ? "—" : yen(v)}${lead ? '<span class="mlead">首位</span>' : ""}</span>
+        <span class="mbar"><i style="width:${w}%;background:${colorOf(i)}"></i></span>
+      </span></td>`;
+    }).join("");
+    return `<tr><td class="mmo">${moLabel(m)}<span class="mdays">${sum[m].days}日</span></td>${tds}<td>${yen(sum[m].total)}</td></tr>`;
+  }).join("");
+  const cumTds = accs.map(a => `<td>${yen(cum[a.id])}</td>`).join("");
+
+  boxM.innerHTML = `<table>
+    <thead><tr><th>月</th>${accs.map((a, i) =>
+      `<th><span class="dot" style="background:${colorOf(i)}"></span>${esc(a.name)}</th>`).join("")}<th>月合計</th></tr></thead>
+    <tbody>${body}<tr class="mcum"><td class="mmo">累計</td>${cumTds}<td>${yen(cumTot)}</td></tr></tbody>
+  </table>`;
+}
+
 function renderDashboard() {
   const dates = allDates();
   const foot = document.getElementById("foot");
@@ -674,11 +768,14 @@ function renderDashboard() {
     document.getElementById("updated").textContent = "まだデータがありません";
     document.getElementById("stats").innerHTML = `<div class="card empty" style="grid-column:1/-1">「売上入力」タブから最初のデータを入力してください</div>`;
     document.getElementById("leaderboard").innerHTML = `<div class="empty">データなし</div>`;
+    document.getElementById("monthly").innerHTML = `<div class="empty">データなし</div>`;
     svg.textContent = "";
     document.getElementById("legend").innerHTML = "";
     document.getElementById("tbl").innerHTML = "";
     return;
   }
+
+  renderMonthly();
 
   const latest = dates[dates.length - 1];
   const latestMonth = latest.slice(0, 7);
