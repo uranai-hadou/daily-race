@@ -1,6 +1,6 @@
 {
- "updatedAt": "2026-08-09T14:31:17.517Z",
- "nextIdx": 5,
+ "updatedAt": "2026-08-10T12:52:06.087Z",
+ "nextIdx": 6,
  "accounts": [
   {
    "id": "a",
@@ -11,6 +11,11 @@
    "id": "b",
    "name": "銀狐",
    "owner": "りょうすけ"
+  },
+  {
+   "id": "f",
+   "name": "かm",
+   "owner": ""
   }
  ],
  "sales": {
