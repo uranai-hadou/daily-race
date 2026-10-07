@@ -1,6 +1,6 @@
 {
- "updatedAt": "2026-10-07T00:21:30.509Z",
- "nextIdx": 6,
+ "updatedAt": "2026-10-07T00:21:41.044Z",
+ "nextIdx": 7,
  "accounts": [
   {
    "id": "a",
@@ -16,6 +16,11 @@
    "id": "f",
    "name": "カミンチュ",
    "owner": "りょうすけ"
+  },
+  {
+   "id": "g",
+   "name": "し",
+   "owner": ""
   }
  ],
  "sales": {
