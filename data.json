@@ -1,6 +1,6 @@
 {
- "updatedAt": "2026-10-07T00:21:45.762Z",
- "nextIdx": 7,
+ "updatedAt": "2026-10-07T00:21:47.756Z",
+ "nextIdx": 8,
  "accounts": [
   {
    "id": "a",
@@ -21,6 +21,11 @@
    "id": "g",
    "name": "静乃",
    "owner": "けん"
+  },
+  {
+   "id": "h",
+   "name": "",
+   "owner": ""
   }
  ],
  "sales": {
