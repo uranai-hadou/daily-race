@@ -183,18 +183,31 @@
     border-radius: 8px; padding: 6px 10px; font-size: 12px; cursor: pointer; white-space: nowrap;
   }
   .acc-head .del.armed { border-color: var(--danger); color: var(--danger); font-weight: 700; }
-  .acc-body { display: grid; grid-template-columns: 1fr 172px; gap: 8px; align-items: start; }
-  @media (max-width: 430px) { .acc-body { grid-template-columns: 1fr 150px; } }
+  .acc-body { display: grid; grid-template-columns: 1fr; gap: 8px; align-items: start; }
   .owner-wrap { position: relative; }
   .owner-wrap .prefix {
     position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
     font-size: 12px; color: var(--muted); pointer-events: none;
   }
   input.owner { padding-left: 44px; font-size: 14px; }
-  .amt-wrap { position: relative; flex: 1; }
+  .amt-wrap { position: relative; flex: 1 1 0; min-width: 0; }
   .amt-wrap .yen { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 14px; pointer-events: none; }
   input.amt { font-variant-numeric: tabular-nums; padding-left: 24px; text-align: right; }
-  input.amt:disabled { opacity: 0.4; }
+  input.amt:disabled, input.qty:disabled { opacity: 0.4; }
+  .qty-wrap { position: relative; flex: 0 0 84px; }
+  .qty-wrap .unit { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 12px; pointer-events: none; }
+  input.qty { font-variant-numeric: tabular-nums; padding-right: 26px; text-align: right; font-weight: 700; }
+  .item-row .times { flex: none; color: var(--muted); font-size: 13px; }
+  .item-row .sub { flex: 0 0 82px; text-align: right; font-size: 13px; font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .item-row .rm-spacer { flex: none; width: 32px; }
+  @media (max-width: 430px) { .qty-wrap { flex-basis: 70px; } .item-row .sub { flex-basis: 68px; font-size: 12px; } }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; align-items: center; }
+  .chips .lbl { font-size: 11.5px; color: var(--muted); }
+  .chip {
+    border: 1px solid var(--ring); background: transparent; color: var(--ink-2); border-radius: 999px;
+    padding: 5px 12px; font-size: 13px; cursor: pointer; font-variant-numeric: tabular-nums;
+  }
+  .chip:active { transform: scale(0.96); }
   .items.disabled { opacity: 0.4; pointer-events: none; }
   .item-row { display: flex; gap: 6px; align-items: center; }
   .item-row + .item-row { margin-top: 6px; }
@@ -991,17 +1004,31 @@ document.getElementById("prevDay").addEventListener("click", () => shiftDate(-1)
 document.getElementById("nextDay").addEventListener("click", () => shiftDate(1));
 dateEl.addEventListener("input", loadDraft);
 
+/* 鑑定の単価(ワンタップで +1 件できるボタンになる) */
+const PRICE_PRESETS = [4980, 3980, 9800];
+const LEGACY_PRICES = [4900]; /* 過去データの読み替え用(ボタンには出さない) */
+const toInt = (v) => Math.max(0, Math.round(Number(v) || 0));
+const defaultPrice = (ac) => toInt(ac.price) || PRICE_PRESETS[0];
+/* 内訳 = [{p:単価, q:件数}]。旧形式(金額の数値)は単価で割り切れれば「単価×件数」に読み替える */
+const toItem = (v, ac) => {
+  if (v && typeof v === "object") return { p: toInt(v.p), q: toInt(v.q) };
+  const n = toInt(v);
+  if (!n) return { p: defaultPrice(ac), q: 0 };
+  const p = [defaultPrice(ac), ...PRICE_PRESETS, ...LEGACY_PRICES].find(p => n % p === 0);
+  return p ? { p, q: n / p } : { p: n, q: 1 };
+};
+const sumOf = (items) => items.reduce((s, it) => s + toInt(it.p) * toInt(it.q), 0);
 /* 選択した日付の既存データを入力欄に読み込む(内訳があれば内訳ごと復元) */
-const sumOf = (arr) => arr.reduce((s, v) => s + (Math.max(0, Math.round(Number(v) || 0))), 0);
 function loadDraft() {
   const day = state.sales[dateEl.value];
   const itemsDay = state.items[dateEl.value] || {};
   draft = {};
   state.accounts.forEach(ac => {
-    const stored = Array.isArray(itemsDay[ac.id]) && itemsDay[ac.id].length ? itemsDay[ac.id].slice() : null;
-    if (day && typeof day[ac.id] === "number") draft[ac.id] = { amts: stored || [day[ac.id]], skip: false };
-    else if (day) draft[ac.id] = { amts: [0], skip: true };
-    else draft[ac.id] = { amts: stored || [0], skip: false };
+    const stored = Array.isArray(itemsDay[ac.id]) && itemsDay[ac.id].length ? itemsDay[ac.id].map(v => toItem(v, ac)) : null;
+    const blank = () => [{ p: defaultPrice(ac), q: 0 }];
+    if (day && typeof day[ac.id] === "number") draft[ac.id] = { items: stored || [toItem(day[ac.id], ac)], skip: false };
+    else if (day) draft[ac.id] = { items: blank(), skip: true };
+    else draft[ac.id] = { items: stored || blank(), skip: false };
   });
   document.getElementById("savedMark").hidden = !day;
   renderAccounts();
@@ -1014,7 +1041,8 @@ const saveBtn = document.getElementById("saveBtn");
 
 function renderAccounts() {
   accountsEl.innerHTML = state.accounts.map((ac, i) => {
-    const d = draft[ac.id] || (draft[ac.id] = { amts: [0], skip: false });
+    const d = draft[ac.id] || (draft[ac.id] = { items: [{ p: defaultPrice(ac), q: 0 }], skip: false });
+    const presets = [...new Set([defaultPrice(ac), ...PRICE_PRESETS])];
     return `
   <div class="acc-row" data-id="${ac.id}">
     <div class="acc-head">
@@ -1029,17 +1057,28 @@ function renderAccounts() {
         <input type="text" class="owner" data-field="owner" value="${escAttr(ac.owner)}" placeholder="名前">
       </div>
       <div class="items ${d.skip ? "disabled" : ""}">
-        ${d.amts.map((a, idx) => `
-        <div class="item-row">
+        ${d.items.map((it, idx) => `
+        <div class="item-row" data-idx="${idx}">
           <div class="amt-wrap">
             <span class="yen">¥</span>
-            <input type="number" class="amt" data-field="amt" data-idx="${idx}" inputmode="numeric" min="0" step="1"
-              value="${a}" ${d.skip ? "disabled" : ""}>
+            <input type="number" class="amt" data-field="price" data-idx="${idx}" inputmode="numeric" min="0" step="1"
+              value="${it.p}" aria-label="単価" ${d.skip ? "disabled" : ""}>
           </div>
-          ${d.amts.length > 1 ? `<button type="button" class="rm" data-idx="${idx}" aria-label="この売上を削除">✕</button>` : ""}
+          <span class="times">×</span>
+          <div class="qty-wrap">
+            <input type="number" class="qty" data-field="qty" data-idx="${idx}" inputmode="numeric" min="0" step="1"
+              value="${it.q}" aria-label="件数" ${d.skip ? "disabled" : ""}>
+            <span class="unit">件</span>
+          </div>
+          <span class="sub">${yen(toInt(it.p) * toInt(it.q))}</span>
+          ${d.items.length > 1 ? `<button type="button" class="rm" data-idx="${idx}" aria-label="この単価の行を削除">✕</button>` : `<span class="rm-spacer"></span>`}
         </div>`).join("")}
-        <button type="button" class="add-item">+ 売上を追加(自動で合算)</button>
-        <div class="acc-total"><span class="lbl">合計</span>${yen(sumOf(d.amts))}</div>
+        <div class="chips">
+          <span class="lbl">タップで+1件:</span>
+          ${presets.map(p => `<button type="button" class="chip" data-price="${p}">${yen(p)} +1</button>`).join("")}
+        </div>
+        <button type="button" class="add-item">+ 別の単価を追加(自動で合算)</button>
+        <div class="acc-total"><span class="lbl">合計</span>${yen(sumOf(d.items))}</div>
       </div>
       <div class="skip-toggle" style="grid-column: 1 / -1;">
         <input type="checkbox" id="skip-${ac.id}" data-field="skip" ${d.skip ? "checked" : ""}>
@@ -1065,28 +1104,49 @@ accountsEl.addEventListener("input", (e) => {
   const f = e.target.dataset.field;
   if (f === "name") { ac.name = e.target.value; saveState(); queuePush(); }
   if (f === "owner") { ac.owner = e.target.value; saveState(); queuePush(); }
-  if (f === "amt") {
-    const d = draft[ac.id] = draft[ac.id] || { amts: [0], skip: false };
-    d.amts[Number(e.target.dataset.idx)] = Math.max(0, Math.round(Number(e.target.value) || 0));
+  if (f === "price" || f === "qty") {
+    const d = draft[ac.id];
+    const idx = Number(e.target.dataset.idx);
+    const it = d && d.items[idx]; if (!it) return;
+    it[f === "price" ? "p" : "q"] = toInt(e.target.value);
+    const subEl = row.querySelector(`.item-row[data-idx="${idx}"] .sub`);
+    if (subEl) subEl.textContent = yen(toInt(it.p) * toInt(it.q));
     const totalEl = row.querySelector(".acc-total");
-    if (totalEl) totalEl.innerHTML = `<span class="lbl">合計</span>${yen(sumOf(d.amts))}`;
+    if (totalEl) totalEl.innerHTML = `<span class="lbl">合計</span>${yen(sumOf(d.items))}`;
   }
   if (f === "skip") {
-    const d = draft[ac.id] = draft[ac.id] || { amts: [0], skip: false };
+    const d = draft[ac.id] = draft[ac.id] || { items: [{ p: defaultPrice(ac), q: 0 }], skip: false };
     d.skip = e.target.checked;
     renderAccounts();
   }
   resetSaveBtn();
 });
 
+/* 単価・件数欄はタップで全選択(0を消さずにそのまま打てる) */
+accountsEl.addEventListener("focusin", (e) => {
+  if (e.target.matches("input.amt, input.qty")) e.target.select();
+});
+
 accountsEl.addEventListener("click", (e) => {
   const row0 = e.target.closest(".acc-row");
+  /* 単価ボタン: 同じ単価の行があれば+1件、なければ行を足す(空の行があればそこを使う) */
+  const chip = e.target.closest(".chip");
+  if (chip && row0) {
+    const d = draft[row0.dataset.id];
+    const p = Number(chip.dataset.price);
+    if (d && !d.skip) {
+      const it = d.items.find(it => it.p === p) || d.items.find(it => !it.q);
+      if (it) { it.p = p; it.q += 1; } else d.items.push({ p, q: 1 });
+      renderAccounts();
+    }
+    return;
+  }
   /* 内訳の追加・削除 */
   const addI = e.target.closest(".add-item");
   if (addI && row0) {
     const d = draft[row0.dataset.id];
     if (d) {
-      d.amts.push(0);
+      d.items.push({ p: 0, q: 1 });
       renderAccounts();
       const newRow = accountsEl.querySelector(`.acc-row[data-id="${row0.dataset.id}"]`);
       const inputs = newRow ? newRow.querySelectorAll(".amt") : [];
@@ -1097,8 +1157,8 @@ accountsEl.addEventListener("click", (e) => {
   const rm = e.target.closest(".rm");
   if (rm && row0) {
     const d = draft[row0.dataset.id];
-    if (d && d.amts.length > 1) {
-      d.amts.splice(Number(rm.dataset.idx), 1);
+    if (d && d.items.length > 1) {
+      d.items.splice(Number(rm.dataset.idx), 1);
       renderAccounts();
     }
     return;
@@ -1133,7 +1193,7 @@ addBtn.addEventListener("click", () => {
   let id;
   do { id = idFor(state.nextIdx); state.nextIdx += 1; } while (usedIds.has(id));
   state.accounts.push({ id, name: "", owner: "" });
-  draft[id] = { amts: [0], skip: false };
+  draft[id] = { items: [{ p: PRICE_PRESETS[0], q: 0 }], skip: false };
   saveState();
   queuePush();
   renderAccounts();
@@ -1150,10 +1210,13 @@ saveBtn.addEventListener("click", () => {
   state.accounts.forEach(ac => {
     const d = draft[ac.id];
     if (d && !d.skip) {
-      const amts = d.amts.map(v => Math.max(0, Math.round(Number(v) || 0)));
-      day[ac.id] = sumOf(amts);
-      itemsDay[ac.id] = amts;
+      const items = d.items.map(it => ({ p: toInt(it.p), q: toInt(it.q) }));
+      day[ac.id] = sumOf(items);
+      itemsDay[ac.id] = items;
       any = true;
+      /* いちばん売れた単価を、このアカウントの次回の初期単価にする */
+      const main = items.filter(it => it.p && it.q).sort((x, y) => y.q - x.q)[0];
+      if (main) ac.price = main.p;
     }
   });
   if (any) { state.sales[dateEl.value] = day; state.items[dateEl.value] = itemsDay; }
