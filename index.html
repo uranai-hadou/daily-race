@@ -242,6 +242,11 @@
     font-size: 13.5px; font-weight: 600; padding: 10px 16px; border-radius: 8px;
     border: 1px solid var(--baseline); background: transparent; color: var(--ink-2); cursor: pointer; width: 100%;
   }
+  .day-del-btn {
+    margin-top: 10px; width: 100%; font-size: 13px; padding: 9px 16px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--ring); background: transparent; color: var(--muted);
+  }
+  .day-del-btn.armed { border-color: var(--danger); color: var(--danger); font-weight: 700; }
   .share-btn.copied { border-color: var(--good); color: var(--good); }
   .share-note { font-size: 12px; color: var(--muted); margin-top: 8px; }
 
@@ -341,6 +346,7 @@
 
     <section class="card">
       <button type="button" class="save-btn" id="saveBtn">この日の売上を保存(全員に自動反映)</button>
+      <button type="button" class="day-del-btn" id="dayDelBtn" hidden>この日の記録を削除</button>
       <div style="height:10px"></div>
       <button type="button" class="share-btn" id="shareBtn">バックアップ用データをコピー</button>
       <div class="share-note">
@@ -1005,10 +1011,10 @@ document.getElementById("nextDay").addEventListener("click", () => shiftDate(1))
 dateEl.addEventListener("input", loadDraft);
 
 /* 鑑定の単価(ワンタップで +1 件できるボタンになる) */
-const PRICE_PRESETS = [4980, 3980, 9800];
-const LEGACY_PRICES = [4900]; /* 過去データの読み替え用(ボタンには出さない) */
+const PRICE_PRESETS = [9800, 4900, 3980, 3900];
+const LEGACY_PRICES = [4980]; /* 過去データの読み替え用(ボタンには出さない) */
 const toInt = (v) => Math.max(0, Math.round(Number(v) || 0));
-const defaultPrice = (ac) => toInt(ac.price) || PRICE_PRESETS[0];
+const defaultPrice = (ac) => PRICE_PRESETS.includes(toInt(ac.price)) ? toInt(ac.price) : PRICE_PRESETS[0];
 /* 内訳 = [{p:単価, q:件数}]。旧形式(金額の数値)は単価で割り切れれば「単価×件数」に読み替える */
 const toItem = (v, ac) => {
   if (v && typeof v === "object") return { p: toInt(v.p), q: toInt(v.q) };
@@ -1031,6 +1037,7 @@ function loadDraft() {
     else draft[ac.id] = { items: stored || blank(), skip: false };
   });
   document.getElementById("savedMark").hidden = !day;
+  setDayDel(!!day);
   renderAccounts();
 }
 
@@ -1042,7 +1049,7 @@ const saveBtn = document.getElementById("saveBtn");
 function renderAccounts() {
   accountsEl.innerHTML = state.accounts.map((ac, i) => {
     const d = draft[ac.id] || (draft[ac.id] = { items: [{ p: defaultPrice(ac), q: 0 }], skip: false });
-    const presets = [...new Set([defaultPrice(ac), ...PRICE_PRESETS])];
+    const presets = PRICE_PRESETS;
     return `
   <div class="acc-row" data-id="${ac.id}">
     <div class="acc-head">
@@ -1071,7 +1078,9 @@ function renderAccounts() {
             <span class="unit">件</span>
           </div>
           <span class="sub">${yen(toInt(it.p) * toInt(it.q))}</span>
-          ${d.items.length > 1 ? `<button type="button" class="rm" data-idx="${idx}" aria-label="この単価の行を削除">✕</button>` : `<span class="rm-spacer"></span>`}
+          ${toInt(it.q) > 1 ? `<button type="button" class="rm" data-idx="${idx}" aria-label="1件減らす">−1</button>`
+            : d.items.length > 1 || toInt(it.q) ? `<button type="button" class="rm" data-idx="${idx}" aria-label="この単価の行を削除">✕</button>`
+            : `<span class="rm-spacer"></span>`}
         </div>`).join("")}
         <div class="chips">
           <span class="lbl">タップで+1件:</span>
@@ -1157,8 +1166,11 @@ accountsEl.addEventListener("click", (e) => {
   const rm = e.target.closest(".rm");
   if (rm && row0) {
     const d = draft[row0.dataset.id];
-    if (d && d.items.length > 1) {
-      d.items.splice(Number(rm.dataset.idx), 1);
+    const it = d && d.items[Number(rm.dataset.idx)];
+    if (it) {
+      if (toInt(it.q) > 1) it.q = toInt(it.q) - 1;
+      else if (d.items.length > 1) d.items.splice(Number(rm.dataset.idx), 1);
+      else d.items[0] = { p: defaultPrice(state.accounts.find(a => a.id === row0.dataset.id) || {}), q: 0 };
       renderAccounts();
     }
     return;
@@ -1223,6 +1235,7 @@ saveBtn.addEventListener("click", () => {
   else { delete state.sales[dateEl.value]; delete state.items[dateEl.value]; }
   saveState();
   document.getElementById("savedMark").hidden = !any;
+  setDayDel(any);
   renderDashboard();
   saveBtn.classList.add("saved");
   saveBtn.textContent = "✓ 保存しました(" + jpDate(dateEl.value) + ") 同期中…";
@@ -1232,6 +1245,37 @@ saveBtn.addEventListener("click", () => {
       ? "✓ 保存して全員に反映しました(" + jpDate(dateEl.value) + ")"
       : "✓ この端末に保存(全員への反映は未完了 — 下の自動同期を確認)";
   });
+});
+
+/* この日の記録を丸ごと削除(2回押しで確定) */
+const dayDelBtn = document.getElementById("dayDelBtn");
+function setDayDel(show) {
+  dayDelBtn.hidden = !show;
+  dayDelBtn.classList.remove("armed");
+  dayDelBtn.textContent = "この日の記録を削除";
+}
+dayDelBtn.addEventListener("click", () => {
+  if (!dayDelBtn.classList.contains("armed")) {
+    dayDelBtn.classList.add("armed");
+    dayDelBtn.textContent = "本当に削除?(" + jpDate(dateEl.value) + "の売上が消えます)";
+    return;
+  }
+  const date = dateEl.value;
+  delete state.sales[date];
+  delete state.items[date];
+  saveState();
+  renderDashboard();
+  loadDraft();
+  saveBtn.textContent = "削除しました(" + jpDate(date) + ") 同期中…";
+  dirty = true;
+  cloudPush().then(ok => {
+    saveBtn.textContent = ok
+      ? "削除して全員に反映しました(" + jpDate(date) + ")"
+      : "この端末で削除(全員への反映は未完了 — 下の自動同期を確認)";
+  });
+});
+document.addEventListener("click", (e) => {
+  if (e.target !== dayDelBtn && dayDelBtn.classList.contains("armed")) setDayDel(true);
 });
 
 /* チーム共有用テキスト */
