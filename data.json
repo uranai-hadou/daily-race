@@ -1,5 +1,5 @@
 {
- "updatedAt": "2026-11-01T09:32:22.504Z",
+ "updatedAt": "2026-11-01T09:32:29.287Z",
  "nextIdx": 8,
  "accounts": [
   {
@@ -24,11 +24,6 @@
    "name": "静乃",
    "owner": "けん",
    "price": 9800
-  },
-  {
-   "id": "h",
-   "name": "舞",
-   "owner": "ハリー"
   }
  ],
  "sales": {
