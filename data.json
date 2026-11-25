@@ -1,6 +1,6 @@
 {
- "updatedAt": "2026-11-25T13:31:09.307Z",
- "nextIdx": 8,
+ "updatedAt": "2026-11-25T14:22:13.815Z",
+ "nextIdx": 9,
  "accounts": [
   {
    "id": "a",
@@ -25,6 +25,11 @@
    "name": "静乃",
    "owner": "ハリー・けん",
    "price": 4980
+  },
+  {
+   "id": "i",
+   "name": "神楽",
+   "owner": ""
   }
  ],
  "sales": {
