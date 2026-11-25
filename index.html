@@ -1011,8 +1011,8 @@ document.getElementById("nextDay").addEventListener("click", () => shiftDate(1))
 dateEl.addEventListener("input", loadDraft);
 
 /* 鑑定の単価(ワンタップで +1 件できるボタンになる) */
-const PRICE_PRESETS = [9800, 4900, 3980, 3900];
-const LEGACY_PRICES = [4980]; /* 過去データの読み替え用(ボタンには出さない) */
+const PRICE_PRESETS = [9800, 4980, 4900, 3980, 3900];
+const LEGACY_PRICES = []; /* 過去データの読み替え用(ボタンには出さない) */
 const toInt = (v) => Math.max(0, Math.round(Number(v) || 0));
 const defaultPrice = (ac) => PRICE_PRESETS.includes(toInt(ac.price)) ? toInt(ac.price) : PRICE_PRESETS[0];
 /* 内訳 = [{p:単価, q:件数}]。旧形式(金額の数値)は単価で割り切れれば「単価×件数」に読み替える */
